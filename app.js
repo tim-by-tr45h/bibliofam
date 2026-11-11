@@ -78,17 +78,20 @@ async function startScan() {
 }
 const resume = () => { S.busy = false; try { S.scanner?.resume(); } catch (e) { } };
 async function lookup(code) {
-  const J = async u => { try { const r = await fetch(u); return r.ok ? await r.json() : null; } catch (e) { return null; } };
+  const log = [];
+  const J = async (name, u) => { try { const r = await fetch(u); if (!r.ok) { log.push(name + ' : erreur ' + r.status); return null; } return await r.json(); } catch (e) { log.push(name + ' : réseau bloqué'); return null; } };
   const isBook = /^97[89]/.test(code);
   for (const q of isBook ? ['isbn:' + code, code] : ['isbn:' + code]) {
-    const v = (await J('https://www.googleapis.com/books/v1/volumes?maxResults=1&q=' + q))?.items?.[0]?.volumeInfo;
+    const j = await J('Google Books', 'https://www.googleapis.com/books/v1/volumes?maxResults=1&q=' + q), v = j?.items?.[0]?.volumeInfo;
     if (v?.title) return { title: v.title + (v.subtitle ? ' : ' + v.subtitle : ''), author: (v.authors || []).join(', '), genre: (v.categories || [])[0] || '', year: parseInt(v.publishedDate) || '', cover: (v.imageLinks?.thumbnail || '').replace('http:', 'https:'), type: 'Livre' };
+    if (j) log.push('Google Books : aucun résultat');
   }
-  const o = (await J(`https://openlibrary.org/api/books?bibkeys=ISBN:${code}&format=json&jscmd=data`))?.['ISBN:' + code];
+  const oj = await J('Open Library', `https://openlibrary.org/api/books?bibkeys=ISBN:${code}&format=json&jscmd=data`), o = oj?.['ISBN:' + code];
   if (o?.title) return { title: o.title, author: (o.authors || []).map(a => a.name).join(', '), genre: (o.subjects || [])[0]?.name || '', year: parseInt(o.publish_date) || '', cover: o.cover?.medium || '', type: 'Livre' };
-  const e = await J(`https://openlibrary.org/isbn/${code}.json`);
+  if (oj) log.push('Open Library : aucun résultat');
+  const e = await J('Open Library (2)', `https://openlibrary.org/isbn/${code}.json`);
   if (e?.title) return { title: e.title, author: '', genre: '', year: parseInt(e.publish_date) || '', cover: e.covers?.[0] ? `https://covers.openlibrary.org/b/id/${e.covers[0]}-M.jpg` : '', type: 'Livre' };
-  return { type: isBook ? 'Livre' : 'DVD' };
+  return { type: isBook ? 'Livre' : 'DVD', dbg: code + ' → ' + [...new Set(log)].join(' · ') };
 }
 async function handle(code) {
   if (S.busy) return;
@@ -106,6 +109,7 @@ function openForm(it, ex = []) {
   const names = ['Famille', ...S.profiles.map(p => p.name)], own = it.owners || [S.me.name];
   $('#sheet').innerHTML = `<div class="bd" data-act="close"></div><div class="sh"><h2>${it.id ? 'Modifier le produit' : 'Nouveau produit'}</h2>
 ${ex.length ? `<div class="warn">Déjà enregistré : ${esc(owners(ex))}<button class="link" data-act="dup">C’est un exemplaire en plus</button></div>` : ''}
+${it.dbg ? `<div class="warn">Recherche automatique sans résultat. ${esc(it.dbg)}</div>` : ''}
 ${it.cover ? `<div class="fcov"><img src="${esc(it.cover)}" alt=""></div>` : ''}
 <label>Titre<input id="f_title" value="${esc(it.title)}"></label>
 <label>Auteur<input id="f_author" value="${esc(it.author)}"></label>
