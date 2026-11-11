@@ -67,22 +67,28 @@ function render() {
 function stopScan() { const sc = S.scanner; S.scanner = null; S.busy = false; if (sc) sc.stop().then(() => sc.clear()).catch(() => { }); }
 async function startScan() {
   const F = Html5QrcodeSupportedFormats;
-  const sc = new Html5Qrcode('reader', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A], verbose: false });
+  const sc = new Html5Qrcode('reader', { formatsToSupport: [F.EAN_13, F.EAN_8, F.UPC_A], useBarCodeDetectorIfSupported: true, verbose: false });
   S.scanner = sc;
-  try { await sc.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 270, height: 130 } }, handle, () => { }); }
-  catch (e) { $('#reader').innerHTML = '<p class="err" style="color:#fff">Caméra indisponible. Autorisez-la dans les réglages de Safari, ou saisissez le code ci-dessous.</p>'; }
+  const cfg = { fps: 15, aspectRatio: 1.5, qrbox: (w, h) => ({ width: Math.floor(w * 0.9), height: Math.floor(h * 0.55) }) };
+  try { await sc.start({ facingMode: 'environment' }, { ...cfg, videoConstraints: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } }, handle, () => { }); }
+  catch (e1) {
+    try { await sc.start({ facingMode: 'environment' }, cfg, handle, () => { }); }
+    catch (e2) { $('#reader').innerHTML = '<p class="err" style="color:#fff">Caméra indisponible. Autorisez-la dans les réglages de Safari, ou saisissez le code ci-dessous.</p>'; }
+  }
 }
 const resume = () => { S.busy = false; try { S.scanner?.resume(); } catch (e) { } };
 async function lookup(code) {
-  try {
-    const j = await (await fetch('https://www.googleapis.com/books/v1/volumes?q=isbn:' + code)).json(), v = j.items?.[0]?.volumeInfo;
-    if (v) return { title: v.title + (v.subtitle ? ' : ' + v.subtitle : ''), author: (v.authors || []).join(', '), genre: (v.categories || [])[0] || '', year: parseInt(v.publishedDate) || '', cover: (v.imageLinks?.thumbnail || '').replace('http:', 'https:'), type: 'Livre' };
-  } catch (e) { }
-  try {
-    const j = await (await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${code}&format=json&jscmd=data`)).json(), v = j['ISBN:' + code];
-    if (v) return { title: v.title, author: (v.authors || []).map(a => a.name).join(', '), genre: (v.subjects || [])[0]?.name || '', year: parseInt(v.publish_date) || '', cover: v.cover?.medium || '', type: 'Livre' };
-  } catch (e) { }
-  return { type: /^97[89]/.test(code) ? 'Livre' : 'DVD' };
+  const J = async u => { try { const r = await fetch(u); return r.ok ? await r.json() : null; } catch (e) { return null; } };
+  const isBook = /^97[89]/.test(code);
+  for (const q of isBook ? ['isbn:' + code, code] : ['isbn:' + code]) {
+    const v = (await J('https://www.googleapis.com/books/v1/volumes?maxResults=1&q=' + q))?.items?.[0]?.volumeInfo;
+    if (v?.title) return { title: v.title + (v.subtitle ? ' : ' + v.subtitle : ''), author: (v.authors || []).join(', '), genre: (v.categories || [])[0] || '', year: parseInt(v.publishedDate) || '', cover: (v.imageLinks?.thumbnail || '').replace('http:', 'https:'), type: 'Livre' };
+  }
+  const o = (await J(`https://openlibrary.org/api/books?bibkeys=ISBN:${code}&format=json&jscmd=data`))?.['ISBN:' + code];
+  if (o?.title) return { title: o.title, author: (o.authors || []).map(a => a.name).join(', '), genre: (o.subjects || [])[0]?.name || '', year: parseInt(o.publish_date) || '', cover: o.cover?.medium || '', type: 'Livre' };
+  const e = await J(`https://openlibrary.org/isbn/${code}.json`);
+  if (e?.title) return { title: e.title, author: '', genre: '', year: parseInt(e.publish_date) || '', cover: e.covers?.[0] ? `https://covers.openlibrary.org/b/id/${e.covers[0]}-M.jpg` : '', type: 'Livre' };
+  return { type: isBook ? 'Livre' : 'DVD' };
 }
 async function handle(code) {
   if (S.busy) return;
@@ -91,7 +97,7 @@ async function handle(code) {
   if (S.mode === 'check') {
     $('#sheet').innerHTML = `<div class="bd" data-act="close"></div><div class="sh c"><div class="big">${ex.length ? '✅' : '🆕'}</div><h2>${esc(m.title || code)}</h2><p>${ex.length ? 'Déjà à la maison : ' + esc(owners(ex)) : 'Pas encore dans la bibliothèque'}</p><button class="btn" data-act="close">Suivant</button></div>`;
     $('#sheet').className = 'open';
-  } else openForm({ ...m, id: undefined, barcode: code, owners: undefined }, ex);
+  } else { openForm({ ...m, id: undefined, barcode: code, owners: undefined }, ex); if (!ex.length && !m.title) toast('Infos introuvables : complétez la fiche'); }
 }
 
 /* ---------- fiche produit ---------- */
