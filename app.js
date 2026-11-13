@@ -1,5 +1,6 @@
 const C = window.CONFIG, sb = supabase.createClient(C.SUPABASE_URL, C.SUPABASE_KEY);
 const TYPES = ['Livre', 'BD', 'Manga', 'DVD', 'Blu-ray', 'CD', 'Jeu'];
+const LBL = { Livre: ['livre', 'livres'], BD: ['BD', 'BD'], Manga: ['manga', 'mangas'], DVD: ['DVD', 'DVD'], 'Blu-ray': ['Blu-ray', 'Blu-ray'], CD: ['CD', 'CD'], Jeu: ['jeu', 'jeux'] };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const S = { tab: 'home', me: null, email: '', profiles: [], items: [], q: '', ft: '', fo: '', sort: 'created_at', mode: 'add', batch: true, scanner: null, busy: false, cur: null, ex: [] };
@@ -21,7 +22,7 @@ const card = i => `<div class="card" data-act="open" data-id="${i.id}"><div clas
 
 /* ---------- connexion ---------- */
 function login(msg = '') {
-  $('#app').innerHTML = `<div class="login"><div class="logo">📚</div><h1>Bibliothèque familiale</h1><p class="mut">Connectez-vous pour voir vos livres.</p><input id="em" type="email" placeholder="E-mail" autocomplete="username"><input id="pw" type="password" placeholder="Mot de passe" autocomplete="current-password"><button class="btn" data-act="login">Se connecter</button><p class="err">${msg}</p></div>`;
+  $('#app').innerHTML = `<div class="login"><div class="logo">📚</div><h1>Bibli'Home</h1><p class="mut">Connectez-vous pour voir vos livres.</p><input id="em" type="email" placeholder="E-mail" autocomplete="username"><input id="pw" type="password" placeholder="Mot de passe" autocomplete="current-password"><button class="btn" data-act="login">Se connecter</button><p class="err">${msg}</p></div>`;
 }
 async function init() {
   try {
@@ -40,7 +41,7 @@ async function init() {
 /* ---------- vues ---------- */
 const home = () => {
   const n = S.items.length, by = t => S.items.filter(i => i.type === t).length;
-  return `<h1>Bonjour ${esc(S.me.name)}</h1><p class="mut">${n} produit${n > 1 ? 's' : ''} à la maison${n ? ' : ' + TYPES.filter(by).map(t => by(t) + ' ' + t.toLowerCase()).join(', ') : ''}</p><button class="btn" data-act="go" data-tab="scan">Ajouter un produit</button><h2>Derniers ajouts</h2>${n ? `<div class="grid">${S.items.slice(0, 12).map(card).join('')}</div>` : '<p class="empty">Aucun produit pour l’instant.<br>Scannez votre premier livre.</p>'}`;
+  return `<h1>Bonjour ${esc(S.me.name)}</h1><p class="mut">${n} produit${n > 1 ? 's' : ''} à la maison${n ? ' : ' + TYPES.filter(by).map(t => by(t) + ' ' + LBL[t][by(t) > 1 ? 1 : 0]).join(', ') : ''}</p><button class="btn" data-act="go" data-tab="scan">Ajouter un produit</button><h2>Derniers ajouts</h2>${n ? `<div class="grid">${S.items.slice(0, 12).map(card).join('')}</div>` : '<p class="empty">Aucun produit pour l’instant.<br>Scannez votre premier livre.</p>'}`;
 };
 const filt = () => {
   const q = S.q.toLowerCase(), k = S.sort;
@@ -55,12 +56,19 @@ const lib = () => `<h1>Bibliothèque</h1><input id="q" class="search" type="sear
 <select id="sort">${[['created_at', 'Date d’ajout'], ['title', 'Titre'], ['author', 'Auteur'], ['genre', 'Genre'], ['year', 'Année']].map(([v, l]) => `<option value="${v}" ${S.sort === v ? 'selected' : ''}>Trier par : ${l}</option>`).join('')}</select>
 <div id="libgrid">${gridHtml()}</div>`;
 const scan = () => `<h1>Scanner</h1><div class="seg"><button data-act="mode" data-v="add" class="${S.mode === 'add' ? 'on' : ''}">Ajouter</button><button data-act="mode" data-v="check" class="${S.mode === 'check' ? 'on' : ''}">Vérifier</button></div><div id="reader"></div><p class="mut c">${S.mode === 'add' ? 'Placez le code-barres dans le cadre.' : 'Vérifiez si un produit est déjà à la maison, sans l’ajouter.'}</p><div class="row"><input id="isbn" inputmode="numeric" placeholder="ISBN ou code-barres"><button class="btn sm" data-act="isbn">Valider</button></div>${S.mode === 'add' ? `<label class="chk"><input type="checkbox" id="batch" ${S.batch ? 'checked' : ''}> Scan en rafale</label><button class="link" data-act="manual">Saisir les infos à la main</button>` : ''}`;
-const set = () => `<h1>Réglages</h1><div class="panel"><div class="who"><span class="av" style="background:${S.me.color}">${esc(S.me.name[0])}</span><div><b>${esc(S.me.name)}</b><div class="mut">${esc(S.email)}</div></div></div></div><div class="panel"><button class="row-btn" data-act="pwd">Changer mon mot de passe</button><button class="row-btn" data-act="csv">Exporter la bibliothèque (CSV)</button><button class="row-btn" data-act="out">Se déconnecter</button></div><div class="panel mut"><b>Installer sur iPhone</b><br>Dans Safari : Partager, puis « Sur l’écran d’accueil ».</div><p class="mut c">Bibliothèque familiale · version 1</p>`;
+const set = () => `<h1>Réglages</h1><div class="panel"><div class="who"><span class="av" style="background:${S.me.color}">${esc(S.me.name[0])}</span><div><b>${esc(S.me.name)}</b><div class="mut">${esc(S.email)}</div></div></div></div><div class="panel"><button class="row-btn" data-act="pwd">Changer mon mot de passe</button><button class="row-btn" data-act="csv">Exporter la bibliothèque (CSV)</button><button class="row-btn" data-act="out">Se déconnecter</button></div><div class="panel mut"><b>Installer sur iPhone</b><br>Dans Safari : Partager, puis « Sur l’écran d’accueil ».</div><p class="mut c">Bibli'Home · version 1</p>`;
 
 function render() {
   stopScan();
   $('#app').innerHTML = `<main>${{ home, scan, lib, set }[S.tab]()}</main><nav>${TABS.map(([k, l, d]) => `<button data-act="go" data-tab="${k}" class="${S.tab === k ? 'on' : ''}"><svg viewBox="0 0 24 24"><path d="${d}"/></svg>${l}</button>`).join('')}</nav>`;
   if (S.tab === 'scan') startScan();
+}
+
+/* ---------- codes-barres ---------- */
+function normCode(s) {
+  s = String(s || '').replace(/[\s-]/g, '').toUpperCase();
+  if (/^\d{9}[\dX]$/.test(s)) { const b = '978' + s.slice(0, 9); let t = 0; for (let i = 0; i < 12; i++) t += (+b[i]) * (i % 2 ? 3 : 1); return b + ((10 - t % 10) % 10); }
+  return s.replace(/\D/g, '');
 }
 
 /* ---------- scan ---------- */
@@ -115,6 +123,7 @@ ${it.cover ? `<div class="fcov"><img src="${esc(it.cover)}" alt=""></div>` : ''}
 <label>Auteur<input id="f_author" value="${esc(it.author)}"></label>
 <div class="two"><label>Genre<input id="f_genre" value="${esc(it.genre)}"></label><label>Année<input id="f_year" type="number" inputmode="numeric" value="${esc(it.year)}"></label></div>
 <label>Type<select id="f_type">${TYPES.map(t => `<option ${t === it.type ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+<label>ISBN / code-barres<input id="f_code" inputmode="numeric" placeholder="978…" value="${esc(it.barcode)}"></label><div class="mut" style="font-size:12px;margin-top:4px">Permet de retrouver ce produit en le scannant.</div>
 <div class="lbl">Possédé par</div><div class="chips" id="f_own">${names.map(n => `<label class="chip ${own.includes(n) ? 'on' : ''}"><input type="checkbox" value="${esc(n)}" ${own.includes(n) ? 'checked' : ''} hidden>${esc(n)}</label>`).join('')}</div>
 ${it.id ? `<label class="chk"><input type="checkbox" id="f_dup" ${it.duplicate ? 'checked' : ''}> J’ai un exemplaire en double</label>` : ''}
 <button class="btn" data-act="save">${it.id ? 'Enregistrer' : 'Ajouter à la bibliothèque'}</button>
@@ -125,14 +134,14 @@ function closeSheet() { $('#sheet').className = ''; $('#sheet').innerHTML = ''; 
 async function save() {
   const g = id => $('#' + id).value.trim(), it = S.cur;
   if (!g('f_title')) return toast('Le titre est obligatoire');
-  const row = { title: g('f_title'), author: g('f_author') || null, genre: g('f_genre') || null, year: parseInt(g('f_year')) || null, type: g('f_type'), owners: [...document.querySelectorAll('#f_own input:checked')].map(i => i.value) };
+  const row = { title: g('f_title'), author: g('f_author') || null, genre: g('f_genre') || null, year: parseInt(g('f_year')) || null, type: g('f_type'), barcode: normCode(g('f_code')) || null, owners: [...document.querySelectorAll('#f_own input:checked')].map(i => i.value) };
   if (it.id) {
     row.duplicate = $('#f_dup').checked;
     const { data, error } = await sb.from('products').update(row).eq('id', it.id).select().single();
     if (error) return fail(error);
     S.items = S.items.map(x => x.id === it.id ? data : x); toast('Modifié ✓');
   } else {
-    Object.assign(row, { barcode: it.barcode || null, cover: it.cover || null, added_by: S.me.id });
+    Object.assign(row, { cover: it.cover || null, added_by: S.me.id });
     const { data, error } = await sb.from('products').insert(row).select().single();
     if (error) return fail(error);
     S.items.unshift(data); toast('Ajouté ✓');
@@ -154,7 +163,7 @@ document.addEventListener('click', async e => {
   else if (a === 'ft') { S.ft = v; render(); }
   else if (a === 'fo') { S.fo = v; render(); }
   else if (a === 'open') openForm(S.items.find(i => i.id === b.dataset.id));
-  else if (a === 'isbn') { const c = $('#isbn').value.replace(/\D/g, ''); c.length >= 8 ? handle(c) : toast('Code invalide'); }
+  else if (a === 'isbn') { const c = normCode($('#isbn').value); c.length >= 8 ? handle(c) : toast('Code invalide'); }
   else if (a === 'manual') openForm({ type: 'Livre' });
   else if (a === 'close') { closeSheet(); if (S.tab === 'scan') resume(); }
   else if (a === 'save') save();
@@ -177,7 +186,7 @@ document.addEventListener('click', async e => {
     const q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
     const rows = [['Titre', 'Auteur', 'Genre', 'Année', 'Type', 'Code-barres', 'Propriétaires', 'Doublon', 'Date d’ajout'], ...S.items.map(i => [i.title, i.author, i.genre, i.year, i.type, i.barcode, (i.owners || []).join(' + '), i.duplicate ? 'oui' : '', i.created_at.slice(0, 10)])];
     const url = URL.createObjectURL(new Blob(['\ufeff' + rows.map(r => r.map(q).join(';')).join('\n')], { type: 'text/csv' }));
-    Object.assign(document.createElement('a'), { href: url, download: 'bibliotheque.csv' }).click();
+    Object.assign(document.createElement('a'), { href: url, download: 'bibli-home.csv' }).click();
   }
   else if (a === 'out') { await sb.auth.signOut(); S.items = []; login(); }
 });
